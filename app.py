@@ -17,7 +17,12 @@ SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
 
 @app.route('/')
 def index():
-    return 'Welcome. <a href="/login">Connect Google Drive</a>'
+    return '''
+    <h2>Welcome to the Google Drive Connector</h2>
+    <a href="/login">
+        <button style="padding: 10px 20px; font-size: 16px;">Connect Google Drive</button>
+    </a>
+    '''
 
 @app.route('/login')
 def login():
