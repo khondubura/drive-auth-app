@@ -77,4 +77,4 @@ def drive():
     return '✅ Google Drive is connected! You can now use their data.'
 
 if __name__ == '__main__':
-    app.run('localhost', 5000, debug=True)
+    app.run(host='0.0.0.0', port=10000)
