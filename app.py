@@ -93,7 +93,7 @@ def list_drive_files():
     creds_data = user_tokens.get(user_id)
 
     if not creds_data:
-        return jsonify({"error": "Not authorized"}), 403
+        return '<h3 style="color: #DDD8CB; font-family: Montserrat;">Please log in first.</h3>'
 
     creds = Credentials(**creds_data)
 
@@ -103,14 +103,76 @@ def list_drive_files():
         user_tokens[user_id]['token'] = creds.token
 
     service = build('drive', 'v3', credentials=creds)
-
     results = service.files().list(
         pageSize=10,
         fields="files(id, name, mimeType, modifiedTime)"
     ).execute()
     items = results.get('files', [])
 
-    return jsonify(items)
+    html = f"""
+    <html>
+    <head>
+        <style>
+            body {{
+                background-color: #5E5747;
+                font-family: 'Montserrat', sans-serif;
+                color: #DDD8CB;
+                padding: 40px;
+            }}
+            table {{
+                width: 100%;
+                border-collapse: collapse;
+                background-color: #EEEEE9;
+                color: #5E5747;
+                border-radius: 12px;
+                overflow: hidden;
+                font-size: 16px;
+            }}
+            th, td {{
+                padding: 14px 20px;
+                border-bottom: 1px solid #ccc;
+                text-align: left;
+            }}
+            th {{
+                background-color: #DDD8CB;
+                color: #5E5747;
+            }}
+            tr:hover {{
+                background-color: #DDD8CB;
+                color: #5E5747;
+            }}
+        </style>
+    </head>
+    <body>
+        <h2>Your Google Drive Files</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Type</th>
+                    <th>Modified</th>
+                </tr>
+            </thead>
+            <tbody>
+    """
+
+    for file in items:
+        html += f"""
+            <tr>
+                <td>{file['name']}</td>
+                <td>{file['mimeType']}</td>
+                <td>{file.get('modifiedTime', '—')}</td>
+            </tr>
+        """
+
+    html += """
+            </tbody>
+        </table>
+    </body>
+    </html>
+    """
+
+    return html
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
