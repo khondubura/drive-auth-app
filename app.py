@@ -1,19 +1,20 @@
-from flask import Flask, redirect, request, session, url_for
+from flask import Flask, redirect, request, session, url_for, jsonify
 import os
 import google.auth.transport.requests
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
-import pathlib
+from googleapiclient.discovery import build
 
 app = Flask(__name__)
-app.secret_key = "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"  # Change this to a secure secret key
+app.secret_key = "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"
 
-os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"  # For local dev only (HTTP)
+os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 
-# Path to your downloaded client_secret.json
 CLIENT_SECRETS_FILE = "client_secret.json"
-
 SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
+
+# Temporary in-memory token store (use a DB in production)
+user_tokens = {}
 
 @app.route('/')
 def index():
@@ -26,6 +27,12 @@ def index():
 
 @app.route('/login')
 def login():
+    user_id = request.args.get('userId')
+    user_email = request.args.get('email')
+
+    session['user_id'] = user_id
+    session['user_email'] = user_email
+
     flow = Flow.from_client_secrets_file(
         CLIENT_SECRETS_FILE,
         scopes=SCOPES,
@@ -50,7 +57,9 @@ def callback():
     flow.fetch_token(authorization_response=request.url)
 
     credentials = flow.credentials
-    session['credentials'] = {
+    user_id = session.get('user_id')
+
+    user_tokens[user_id] = {
         'token': credentials.token,
         'refresh_token': credentials.refresh_token,
         'token_uri': credentials.token_uri,
@@ -63,18 +72,45 @@ def callback():
 
 @app.route('/drive')
 def drive():
-    if 'credentials' not in session:
-        return redirect('login')
+    user_id = session.get('user_id')
+    creds_data = user_tokens.get(user_id)
 
-    creds = Credentials(**session['credentials'])
+    if not creds_data:
+        return redirect(url_for('login'))
 
-    # Optional: update session with refreshed token
+    creds = Credentials(**creds_data)
+
     if creds.expired and creds.refresh_token:
         request_ = google.auth.transport.requests.Request()
         creds.refresh(request_)
-        session['credentials']['token'] = creds.token
+        user_tokens[user_id]['token'] = creds.token
 
-    return '✅ Google Drive is connected! You can now use their data.'
+    return f"✅ Google Drive connected for user {user_id}"
+
+@app.route('/files')
+def list_drive_files():
+    user_id = session.get('user_id')
+    creds_data = user_tokens.get(user_id)
+
+    if not creds_data:
+        return jsonify({"error": "Not authorized"}), 403
+
+    creds = Credentials(**creds_data)
+
+    if creds.expired and creds.refresh_token:
+        request_ = google.auth.transport.requests.Request()
+        creds.refresh(request_)
+        user_tokens[user_id]['token'] = creds.token
+
+    service = build('drive', 'v3', credentials=creds)
+
+    results = service.files().list(
+        pageSize=10,
+        fields="files(id, name, mimeType, modifiedTime)"
+    ).execute()
+    items = results.get('files', [])
+
+    return jsonify(items)
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
